@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PNG → Vector Drawable Converter</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-tertiary: #21262d;
+    --border: #30363d;
+    --text-primary: #c9d1d9;
+    --text-secondary: #8b949e;
+    --accent: #58a6ff;
+    --accent-hover: #79c0ff;
+    --success: #3fb950;
+    --error: #f85149;
+  }
+  * { box-sizing: border-box; margin:0; padding:0; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 20px;
+    line-height: 1.6;
+  }
+  .container { width:100%; max-width:900px; margin:0 auto; }
+  header { text-align:center; margin-bottom:30px; }
+  h1 {
+    color: var(--accent);
+    margin-bottom:10px;
+    font-size:2.2rem;
+  }
+  .subtitle { color: var(--text-secondary); font-size:1.1rem; }
+  .card {
+    background: var(--bg-secondary);
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+    margin-bottom:20px;
+  }
+  .upload-area {
+    border:2px dashed var(--border);
+    border-radius:8px;
+    padding:40px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition: all .3s ease;
+    margin-bottom:20px;
+  }
+  .upload-area:hover, .upload-area.dragover {
+    border-color: var(--accent);
+    background-color: rgba(88,166,255,0.05);
+  }
+  .upload-icon { font-size:48px; color: var(--text-secondary); margin-bottom:15px;}
+  .upload-text { margin-bottom:15px; }
+  .upload-text h3 { margin-bottom:8px; }
+  .upload-text p { color: var(--text-secondary); font-size:.9rem; }
+  .btn {
+    padding:12px 24px;
+    background: var(--accent);
+    border:none;
+    border-radius:6px;
+    color:white;
+    font-weight:600;
+    cursor:pointer;
+    transition: background .2s ease;
+    display: inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+  }
+  .btn:hover { background: var(--accent-hover); }
+  .btn:disabled {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    cursor:not-allowed;
+  }
+  .btn-secondary {
+    background: var(--bg-tertiary);
+    border:1px solid var(--border);
+  }
+  .btn-secondary:hover { background: var(--border); }
+  .preview-container {
+    display:flex;
+    flex-wrap:wrap;
+    gap:20px;
+    margin-bottom:20px;
+  }
+  .preview-box {
+    flex:1;
+    min-width:250px;
+  }
+  .preview-title {
+    margin-bottom:10px;
+    font-size:1.1rem;
+    color: var(--text-secondary);
+  }
+  .preview {
+    background: var(--bg-primary);
+    border:1px solid var(--border);
+    border-radius:8px;
+    height:200px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+  }
+  .preview img {
+    max-width:100%;
+    max-height:100%;
+    object-fit:contain;
+  }
+  .preview-placeholder {
+    color: var(--text-secondary);
+    text-align:center;
+  }
+  .actions {
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .output-container {
+    margin-top:20px;
+  }
+  .output-header {
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:10px;
+  }
+  pre {
+    background: var(--bg-primary);
+    border:1px solid var(--border);
+    padding:15px;
+    border-radius:8px;
+    overflow-x:auto;
+    max-height:400px;
+    font-size:0.85rem;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: var(--text-primary);
+  }
+  .status {
+    padding:10px 15px;
+    border-radius:6px;
+    margin-bottom:15px;
+    display:none;
+  }
+  .status.success {
+    background: rgba(63,185,80,.1);
+    border:1px solid var(--success);
+    color: var(--success);
+    display:block;
+  }
+  .status.error {
+    background: rgba(248,81,73,.1);
+    border:1px solid var(--error);
+    color: var(--error);
+    display:block;
+  }
+  .status.info {
+    background: rgba(88,166,255,.1);
+    border:1px solid var(--accent);
+    color: var(--accent);
+    display:block;
+  }
+  .loading {
+    display:inline-block;
+    width:20px;
+    height:20px;
+    border:3px solid rgba(255,255,255,.3);
+    border-radius:50%;
+    border-top-color:#fff;
+    animation:spin 1s ease-in-out infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .hidden { display:none !important; }
+  @media (max-width:768px) {
+    .preview-container { flex-direction:column; }
+    .actions { flex-direction:column; }
+    .btn { width:100%; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>PNG → Vector Drawable Converter</h1>
+    <p class="subtitle">Convert PNG images to Android Vector Drawable format</p>
+  </header>
+  <div class="card">
+    <div id="uploadArea" class="upload-area">
+      <div class="upload-icon">📁</div>
+      <div class="upload-text">
+        <h3>Drag & Drop your PNG file</h3>
+        <p>or click to browse</p>
+      </div>
+      <input type="file" id="fileInput" accept="image/png" class="hidden" />
+      <button id="browseBtn" class="btn">Browse Files</button>
+    </div>
+    <div id="status" class="status"></div>
+    <div id="previewSection" class="hidden">
+      <div class="preview-container">
+        <div class="preview-box">
+          <div class="preview-title">Original Image</div>
+          <div class="preview">
+            <img id="originalPreview" src="" alt="Original PNG" />
+          </div>
+        </div>
+        <div class="preview-box">
+          <div class="preview-title">Vector Preview</div>
+          <div class="preview" id="vectorPreview">
+            <div class="preview-placeholder">Vector preview will appear here</div>
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="convertBtn" class="btn">
+          <span id="convertText">Convert to Vector</span>
+          <span id="convertSpinner" class="loading hidden"></span>
+        </button>
+        <button id="downloadBtn" class="btn btn-secondary hidden">
+          <span>Download XML</span>
+        </button>
+        <button id="resetBtn" class="btn btn-secondary">Reset</button>
+      </div>
+    </div>
+  </div>
+  <div id="outputSection" class="card hidden">
+    <div class="output-header">
+      <h2>Vector Drawable XML</h2>
+      <button id="copyBtn" class="btn btn-secondary">Copy to Clipboard</button>
+    </div>
+    <pre id="output"></pre>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/imagetracer_v1.2.6.min.js"></script>
+
+<script>
+  const uploadArea = document.getElementById('uploadArea');
+  const fileInput = document.getElementById('fileInput');
+  const browseBtn = document.getElementById('browseBtn');
+  const status = document.getElementById('status');
+  const previewSection = document.getElementById('previewSection');
+  const originalPreview = document.getElementById('originalPreview');
+  const vectorPreview = document.getElementById('vectorPreview');
+  const convertBtn = document.getElementById('convertBtn');
+  const convertText = document.getElementById('convertText');
+  const convertSpinner = document.getElementById('convertSpinner');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const outputSection = document.getElementById('outputSection');
+  const output = document.getElementById('output');
+  const copyBtn = document.getElementById('copyBtn');
+
+  let xmlResult = '';
+  let imageWidth = 0;
+  let imageHeight = 0;
+  let lastImageData = null;
+
+  browseBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', handleFileSelect);
+
+  uploadArea.addEventListener('dragover', e => {
+    e.preventDefault();
+    uploadArea.classList.add('dragover');
+  });
+  uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+  uploadArea.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadArea.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+      fileInput.files = e.dataTransfer.files;
+      handleFileSelect();
+    }
+  });
+
+  convertBtn.addEventListener('click', convertToVector);
+  downloadBtn.addEventListener('click', downloadXML);
+  resetBtn.addEventListener('click', resetConverter);
+  copyBtn.addEventListener('click', copyToClipboard);
+
+  function showStatus(message, type) {
+    status.textContent = message;
+    status.className = 'status';
+    status.classList.add(type);
+  }
+
+  function handleFileSelect() {
+    const file = fileInput.files[0];
+    if (!file) return;
+    if (!file.type.match('image/png')) {
+      showStatus('Please select a PNG image file.', 'error');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showStatus('File size should be less than 5MB.', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      originalPreview.src = e.target.result;
+      const img = new Image();
+      img.onload = () => {
+        imageWidth = img.width;
+        imageHeight = img.height;
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0,0,img.width, img.height);
+        const imgData = ctx.getImageData(0,0,img.width, img.height);
+        lastImageData = imgData;
+
+        previewSection.classList.remove('hidden');
+        outputSection.classList.add('hidden');
+        downloadBtn.classList.add('hidden');
+
+        showStatus(`Image loaded: ${img.width} × ${img.height} pixels`, 'info');
+
+        vectorPreview.innerHTML = `<img src="${e.target.result}" style="max-width:100%;max-height:100%;object-fit:contain;" alt="Vector Preview" />`;
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function convertToVector() {
+    if (!lastImageData) {
+      showStatus('Please select an image first.', 'error');
+      return;
+    }
+    convertBtn.disabled = true;
+    convertText.textContent = 'Converting...';
+    convertSpinner.classList.remove('hidden');
+
+    setTimeout(() => {
+      try {
+        const options = {
+          scale: 1,
+          numberofcolors: 16,
+          strokewidth: 0,
+          ltres: 0.1,
+          qtres: 0.1
+        };
+        const svgString = ImageTracer.imagedataToSVG(
+          { width: imageWidth, height: imageHeight, data: lastImageData.data },
+          options
+        );
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = svgString;
+        const svgPathEls = tempDiv.querySelectorAll('path');
+        const paths = Array.from(svgPathEls).map(el => ({
+          pathData: el.getAttribute('d'),
+          fillColor: el.getAttribute('fill') || '#000000'
+        }));
+
+        const xmlParts = paths.map(p => `    <path android:pathData="${p.pathData}" android:fillColor="${p.fillColor}" />`).join('\n');
+        xmlResult = `<?xml version="1.0" encoding="utf-8"?>\n<vector xmlns:android="http://schemas.android.com/apk/res/android"\n    android:width="${imageWidth}dp"\n    android:height="${imageHeight}dp"\n    android:viewportWidth="${imageWidth}"\n    android:viewportHeight="${imageHeight}">\n${xmlParts}\n</vector>`;
+
+        output.textContent = xmlResult;
+        outputSection.classList.remove('hidden');
+        downloadBtn.classList.remove('hidden');
+
+        renderVectorPreview(svgString, imageWidth, imageHeight);
+
+        showStatus(`Conversion finished: ${paths.length} paths`, 'success');
+
+      } catch (err) {
+        console.error('Conversion error:', err);
+        showStatus('Conversion failed. Try another image.', 'error');
+      } finally {
+        convertBtn.disabled = false;
+        convertText.textContent = 'Convert to Vector';
+        convertSpinner.classList.add('hidden');
+      }
+    }, 100);
+  }
+
+  function renderVectorPreview(svgString, width, height) {
+    const wrappersvg = `<div style="width:100%;height:100%;overflow:auto;">
+      ${svgString}
+    </div>`;
+    vectorPreview.innerHTML = wrappersvg;
+  }
+
+  function downloadXML() {
+    if (!xmlResult) return;
+    const blob = new Blob([xmlResult], { type: 'application/xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'vector_drawable.xml';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showStatus('XML downloaded!', 'success');
+  }
+
+  function resetConverter() {
+    fileInput.value = '';
+    originalPreview.src = '';
+    vectorPreview.innerHTML = '<div class="preview-placeholder">Vector preview will appear here</div>';
+    output.textContent = '';
+    previewSection.classList.add('hidden');
+    outputSection.classList.add('hidden');
+    downloadBtn.classList.add('hidden');
+    status.className = 'status';
+    xmlResult = '';
+    lastImageData = null;
+    imageWidth = 0;
+    imageHeight = 0;
+  }
+
+  function copyToClipboard() {
+    if (!xmlResult) return;
+    navigator.clipboard.writeText(xmlResult)
+      .then(() => showStatus('XML copied to clipboard!', 'success'))
+      .catch(err => {
+        console.error('Copy failed:', err);
+        showStatus('Copy to clipboard failed.', 'error');
+      });
+  }
+
+</script>
+</body>
+</html>
